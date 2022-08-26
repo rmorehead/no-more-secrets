@@ -26,10 +26,12 @@
 #include "nmscharset.h"
 
 // Speed settings
-#define TYPE_EFFECT_SPEED    4     // miliseconds per char
-#define JUMBLE_SECONDS       2     // number of seconds for jumble effect
-#define JUMBLE_LOOP_SPEED    35    // miliseconds between each jumble
-#define REVEAL_LOOP_SPEED    50    // miliseconds between each reveal loop
+#define TYPE_EFFECT_SPEED    0     // miliseconds per char
+#define JUMBLE_SECONDS       0     // number of seconds for jumble effect
+#define JUMBLE_LOOP_SPEED    1    // miliseconds between each jumble
+#define REVEAL_LOOP_SPEED    1    // miliseconds between each reveal loop
+#define UNJUMBLE_MILLIS      500
+#define AUTO_DECRYPT_WAIT    0
 
 // Behavior settings
 static int autoDecrypt      = 0;            // Auto-decrypt flag
@@ -139,8 +141,9 @@ char nmseffect_exec(unsigned char *string, int string_len) {
 		// Set initial mask chharacter
 		list_pointer->mask = nmscharset_get_random();
 
-		// Set reveal time
-		list_pointer->time = rand() % 5000;
+                // Set reveal time
+
+                list_pointer->time = rand() % UNJUMBLE_MILLIS; //was 5000 how fast they reveal
 
 		// Set character column width
 		wchar_t widec[sizeof(list_pointer->source)] = {};
@@ -187,12 +190,13 @@ char nmseffect_exec(unsigned char *string, int string_len) {
 	// If autoDecrypt flag is set, we sleep. Otherwise require user to
 	// press a key to continue.
 	if (autoDecrypt)
-		sleep(1);
+                sleep(AUTO_DECRYPT_WAIT);
 	else
 		nmstermio_get_char();
 
-	// Jumble loop
-	for (i = 0; i < (JUMBLE_SECONDS * 1000) / JUMBLE_LOOP_SPEED; ++i) {
+        // Jumble loop
+        if (JUMBLE_SECONDS > 0) {
+            for (i = 0; i < (JUMBLE_SECONDS * 1000) / (JUMBLE_LOOP_SPEED || 1); ++i) {
 		
 		// Move cursor to start position
 		nmstermio_move_cursor(origRow, origCol);
@@ -216,7 +220,8 @@ char nmseffect_exec(unsigned char *string, int string_len) {
 		// flush output and sleep
 		nmstermio_refresh();
 		nmseffect_sleep(JUMBLE_LOOP_SPEED);
-	}
+        }
+        }
 
 	// Reveal loop
 	while (!revealed) {
@@ -232,7 +237,7 @@ char nmseffect_exec(unsigned char *string, int string_len) {
 			// Print mask character (or space)
 			if (list_pointer->is_space) {
 				nmstermio_print_string(list_pointer->source);
-				continue;
+                                continue;
 			}
 			
 			// If we still have time before the char is revealed, display the mask
