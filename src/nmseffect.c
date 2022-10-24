@@ -30,7 +30,7 @@
 #define JUMBLE_SECONDS       0     // number of seconds for jumble effect
 #define JUMBLE_LOOP_SPEED    1    // miliseconds between each jumble
 #define REVEAL_LOOP_SPEED    1    // miliseconds between each reveal loop
-#define UNJUMBLE_MILLIS      500
+#define UNJUMBLE_MILLIS      1000
 #define AUTO_DECRYPT_WAIT    0
 
 // Behavior settings
@@ -223,6 +223,10 @@ char nmseffect_exec(unsigned char *string, int string_len) {
         }
         }
 
+        struct timespec tp_start;
+        memset(&tp_start, 0, sizeof(tp_start));
+        clock_gettime(CLOCK_MONOTONIC, &tp_start);
+
 	// Reveal loop
 	while (!revealed) {
 		
@@ -231,7 +235,17 @@ char nmseffect_exec(unsigned char *string, int string_len) {
 		
 		// Set revealed flag
 		revealed = 1;
-		
+
+                struct timespec tp_now;
+                memset(&tp_now, 0, sizeof(tp_now));
+                clock_gettime(CLOCK_MONOTONIC, &tp_now);
+                long millis_since_start =
+                    (tp_now.tv_sec - tp_start.tv_sec) * 1000;
+                if (tp_now.tv_nsec != tp_start.tv_nsec) {
+                    millis_since_start +=
+                        (tp_now.tv_nsec - tp_start.tv_nsec) / 1000000;
+                }
+
 		for (list_pointer = list_head; list_pointer != NULL; list_pointer = list_pointer->next) {
 	
 			// Print mask character (or space)
@@ -241,10 +255,10 @@ char nmseffect_exec(unsigned char *string, int string_len) {
 			}
 			
 			// If we still have time before the char is revealed, display the mask
-			if (list_pointer->time > 0) {
+                        if (list_pointer->time > millis_since_start) {
 				
 				// Change the mask randomly
-				if (list_pointer->time < 500) {
+                                if ((list_pointer->time - millis_since_start) < 500) {
 					if (rand() % 3 == 0) {
 						list_pointer->mask = nmscharset_get_random();
 					}
@@ -257,8 +271,8 @@ char nmseffect_exec(unsigned char *string, int string_len) {
 				// Print mask
 				nmstermio_print_string(list_pointer->mask);
 				
-				// Decrement reveal time
-				list_pointer->time -= REVEAL_LOOP_SPEED;
+                                // No need to Decrement reveal time
+                                //list_pointer->time -= millis_since_last;
 				
 				// Unset revealed flag
 				revealed = 0;
