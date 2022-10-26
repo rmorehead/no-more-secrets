@@ -29,7 +29,7 @@
 #define TYPE_EFFECT_SPEED    0     // miliseconds per char
 #define JUMBLE_SECONDS       0     // number of seconds for jumble effect
 #define JUMBLE_LOOP_SPEED    1    // miliseconds between each jumble
-#define REVEAL_LOOP_SPEED    1    // miliseconds between each reveal loop
+#define REVEAL_LOOP_SPEED    70    // at least this many miliseconds between each reveal loop
 #define UNJUMBLE_MILLIS      1000
 #define AUTO_DECRYPT_WAIT    0
 
@@ -227,6 +227,9 @@ char nmseffect_exec(unsigned char *string, int string_len) {
         memset(&tp_start, 0, sizeof(tp_start));
         clock_gettime(CLOCK_MONOTONIC, &tp_start);
 
+        long millis_since_start_last = 0;
+
+
 	// Reveal loop
 	while (!revealed) {
 		
@@ -239,12 +242,14 @@ char nmseffect_exec(unsigned char *string, int string_len) {
                 struct timespec tp_now;
                 memset(&tp_now, 0, sizeof(tp_now));
                 clock_gettime(CLOCK_MONOTONIC, &tp_now);
+
                 long millis_since_start =
                     (tp_now.tv_sec - tp_start.tv_sec) * 1000;
                 if (tp_now.tv_nsec != tp_start.tv_nsec) {
                     millis_since_start +=
                         (tp_now.tv_nsec - tp_start.tv_nsec) / 1000000;
                 }
+
 
 		for (list_pointer = list_head; list_pointer != NULL; list_pointer = list_pointer->next) {
 	
@@ -259,10 +264,12 @@ char nmseffect_exec(unsigned char *string, int string_len) {
 				
 				// Change the mask randomly
                                 if ((list_pointer->time - millis_since_start) < 500) {
-					if (rand() % 3 == 0) {
+                                    // when the character is close to being revealed, update more often
+                                        if (rand() % 3 == 0) {
 						list_pointer->mask = nmscharset_get_random();
 					}
-				} else {
+                                } else {
+                                    // update less often if the char is not being revealed
 					if (rand() % 10 == 0) {
 						list_pointer->mask = nmscharset_get_random();
 					}
@@ -284,8 +291,15 @@ char nmseffect_exec(unsigned char *string, int string_len) {
 		}
 
 		// flush output and sleep
-		nmstermio_refresh();
-		nmseffect_sleep(REVEAL_LOOP_SPEED);
+                nmstermio_refresh();
+                if (millis_since_start_last != 0) {
+                    long sleep_millis = REVEAL_LOOP_SPEED - (millis_since_start - millis_since_start_last);
+                    if (sleep_millis > 0) {
+                        nmseffect_sleep(sleep_millis);
+                    }
+                }
+                millis_since_start_last = millis_since_start;
+
 	}
 
 	nmstermio_clear_input();
